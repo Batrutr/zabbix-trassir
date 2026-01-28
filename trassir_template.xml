@@ -135,43 +135,17 @@
                     <description>Автоматическое обнаружение каналов TRASSIR</description>
                     <item_prototypes>
                         <item_prototype>
-                            <uuid>aabbccddeeff4011a233445566778899</uuid>
-                            <name>Channel [{#CHANNEL.NAME}]: State</name>
+                            <uuid>99887766554443229100ffeeddccbbaa</uuid>
+                            <name>Channel [{#CHANNEL.NAME}]: Signal status</name>
                             <type>HTTP_AGENT</type>
-                            <key>trassir.channel.state[{#CHANNEL.GUID}]</key>
+                            <key>trassir.channel.signal[{#CHANNEL.GUID}]</key>
                             <delay>30s</delay>
                             <history>7d</history>
-                            <value_type>TEXT</value_type>
-                            <description>Полное состояние канала {#CHANNEL.NAME}</description>
+                            <description>Статус сигнала канала: 1 - Signal, 0 - No Signal</description>
                             <timeout>10s</timeout>
                             <url>{$TRASSIR.URL}/objects/{#CHANNEL.GUID}?username={$TRASSIR.USERNAME}&amp;password={$TRASSIR.PASSWORD}</url>
                             <verify_host>NO</verify_host>
                             <verify_peer>NO</verify_peer>
-                            <preprocessing>
-                                <step>
-                                    <type>CHECK_NOT_SUPPORTED</type>
-                                    <parameters>
-                                        <parameter/>
-                                    </parameters>
-                                    <error_handler>CUSTOM_VALUE</error_handler>
-                                    <error_handler_params>{"state_vector":[]}</error_handler_params>
-                                </step>
-                            </preprocessing>
-                            <tags>
-                                <tag>
-                                    <tag>channel</tag>
-                                    <value>{#CHANNEL.NAME}</value>
-                                </tag>
-                            </tags>
-                        </item_prototype>
-                        <item_prototype>
-                            <uuid>99887766554443229100ffeeddccbbaa</uuid>
-                            <name>Channel [{#CHANNEL.NAME}]: Signal status</name>
-                            <type>DEPENDENT</type>
-                            <key>trassir.channel.signal[{#CHANNEL.GUID}]</key>
-                            <delay>0</delay>
-                            <history>7d</history>
-                            <description>Статус сигнала канала: 1 - Signal, 0 - No Signal</description>
                             <valuemap>
                                 <name>Signal status</name>
                             </valuemap>
@@ -191,9 +165,6 @@
                                     </parameters>
                                 </step>
                             </preprocessing>
-                            <master_item>
-                                <key>trassir.channel.state[{#CHANNEL.GUID}]</key>
-                            </master_item>
                             <tags>
                                 <tag>
                                     <tag>channel</tag>
@@ -224,82 +195,6 @@
                                     </tags>
                                 </trigger_prototype>
                             </trigger_prototypes>
-                        </item_prototype>
-                        <item_prototype>
-                            <uuid>0fedcba987654321bedcba9876543210</uuid>
-                            <name>Channel [{#CHANNEL.NAME}]: Motion detected</name>
-                            <type>DEPENDENT</type>
-                            <key>trassir.channel.motion[{#CHANNEL.GUID}]</key>
-                            <delay>0</delay>
-                            <history>7d</history>
-                            <description>Обнаружение движения: 1 - Motion, 0 - No Motion</description>
-                            <preprocessing>
-                                <step>
-                                    <type>JSONPATH</type>
-                                    <parameters>
-                                        <parameter>$.state_vector[1]</parameter>
-                                    </parameters>
-                                    <error_handler>CUSTOM_VALUE</error_handler>
-                                    <error_handler_params>No Motion</error_handler_params>
-                                </step>
-                                <step>
-                                    <type>JAVASCRIPT</type>
-                                    <parameters>
-                                        <parameter>return value === "Motion" ? 1 : 0;</parameter>
-                                    </parameters>
-                                </step>
-                            </preprocessing>
-                            <master_item>
-                                <key>trassir.channel.state[{#CHANNEL.GUID}]</key>
-                            </master_item>
-                            <tags>
-                                <tag>
-                                    <tag>channel</tag>
-                                    <value>{#CHANNEL.NAME}</value>
-                                </tag>
-                                <tag>
-                                    <tag>component</tag>
-                                    <value>motion</value>
-                                </tag>
-                            </tags>
-                        </item_prototype>
-                        <item_prototype>
-                            <uuid>1234567890ab4def9234567890abcdef</uuid>
-                            <name>Channel [{#CHANNEL.NAME}]: Recording status</name>
-                            <type>DEPENDENT</type>
-                            <key>trassir.channel.recording[{#CHANNEL.GUID}]</key>
-                            <delay>0</delay>
-                            <history>7d</history>
-                            <description>Статус записи: 1 - Recording, 0 - Not Recording</description>
-                            <preprocessing>
-                                <step>
-                                    <type>JSONPATH</type>
-                                    <parameters>
-                                        <parameter>$.state_vector[2]</parameter>
-                                    </parameters>
-                                    <error_handler>CUSTOM_VALUE</error_handler>
-                                    <error_handler_params>Not Recording</error_handler_params>
-                                </step>
-                                <step>
-                                    <type>JAVASCRIPT</type>
-                                    <parameters>
-                                        <parameter>return value === "Recording" ? 1 : 0;</parameter>
-                                    </parameters>
-                                </step>
-                            </preprocessing>
-                            <master_item>
-                                <key>trassir.channel.state[{#CHANNEL.GUID}]</key>
-                            </master_item>
-                            <tags>
-                                <tag>
-                                    <tag>channel</tag>
-                                    <value>{#CHANNEL.NAME}</value>
-                                </tag>
-                                <tag>
-                                    <tag>component</tag>
-                                    <value>recording</value>
-                                </tag>
-                            </tags>
                         </item_prototype>
                     </item_prototypes>
                     <lld_macro_paths>
