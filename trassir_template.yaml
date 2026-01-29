@@ -1,61 +1,22 @@
 zabbix_export:
-  version: '6.0'
-  date: '2026-01-27T12:00:00Z'
-  groups:
+  version: '7.2'
+  template_groups:
     - uuid: 7df96b18f2304087ad29bb8bf6f8e6e9
-      name: Templates/Video Surveillance
+      name: 'Templates/Video surveillance'
   templates:
     - uuid: a571c0d144b54967a915ab6dac3b1f1e
-      template: TRASSIR Server
-      name: TRASSIR Server Monitoring
-      description: Мониторинг состояния каналов TRASSIR через SDK API
+      template: 'TRASSIR Server'
+      name: 'TRASSIR Server Monitoring'
+      description: 'Мониторинг состояния каналов TRASSIR через SDK API'
       groups:
-        - name: Templates/Video Surveillance
+        - name: 'Templates/Video surveillance'
       items:
-        - uuid: f1e2d3c4b5a647868532d1fedcba0987
-          name: 'TRASSIR: Get objects list'
-          type: HTTP_AGENT
-          key: trassir.objects
-          delay: 2h
-          history: 1d
-          trends: '0'
-          value_type: TEXT
-          description: Получение списка всех объектов сервера TRASSIR
-          timeout: 10s
-          url: '{$TRASSIR.URL}/objects/?username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
-          verify_host: 'NO'
-          verify_peer: 'NO'
-          preprocessing:
-            - type: CHECK_NOT_SUPPORTED
-              parameters:
-                - ''
-              error_handler: CUSTOM_VALUE
-              error_handler_params: '[]'
-          tags:
-            - tag: component
-              value: trassir
-        - uuid: a1b2c3d4e5f64718a9384756abcdef01
-          name: 'TRASSIR: Server health'
-          type: HTTP_AGENT
-          key: trassir.health
-          delay: 1m
-          history: 7d
-          value_type: TEXT
-          description: Состояние здоровья сервера TRASSIR
-          timeout: 10s
-          url: '{$TRASSIR.URL}/health?username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
-          verify_host: 'NO'
-          verify_peer: 'NO'
-          tags:
-            - tag: component
-              value: health
         - uuid: 11223344556647889900aabbccddeeff
           name: 'TRASSIR: Channels online'
           type: DEPENDENT
           key: trassir.channels.online
-          delay: '0'
           history: 7d
-          description: Количество каналов онлайн
+          description: 'Количество каналов онлайн'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -69,9 +30,8 @@ zabbix_export:
           name: 'TRASSIR: Channels total'
           type: DEPENDENT
           key: trassir.channels.total
-          delay: '0'
           history: 7d
-          description: Общее количество каналов
+          description: 'Общее количество каналов'
           preprocessing:
             - type: JSONPATH
               parameters:
@@ -81,14 +41,72 @@ zabbix_export:
           tags:
             - tag: component
               value: channels
+        - uuid: a16371ccf4a741ccb79e556ea58ba62b
+          name: 'TRASSIR: CPU load'
+          type: DEPENDENT
+          key: trassir.cpu.load
+          history: 7d
+          value_type: FLOAT
+          units: '%'
+          description: 'Загрузка CPU сервера TRASSIR'
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - $.cpu_load
+          master_item:
+            key: trassir.health
+          tags:
+            - tag: component
+              value: cpu
+          triggers:
+            - uuid: 9f845ea9dd044b5da704e0b4b8ee7204
+              expression: 'avg(/TRASSIR Server/trassir.cpu.load,30m)>=90'
+              name: 'TRASSIR: Critical CPU load (>90% for 30m)'
+              priority: HIGH
+              description: 'Критическая загрузка CPU на сервере TRASSIR'
+        - uuid: a1b2c3d4e5f64718a9384756abcdef01
+          name: 'TRASSIR: Server health'
+          type: HTTP_AGENT
+          key: trassir.health
+          history: 7d
+          value_type: TEXT
+          description: 'Состояние здоровья сервера TRASSIR'
+          timeout: 10s
+          url: '{$TRASSIR.URL}/health'
+          posts: 'username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
+          request_method: POST
+          tags:
+            - tag: component
+              value: health
+        - uuid: f1e2d3c4b5a647868532d1fedcba0987
+          name: 'TRASSIR: Get objects list'
+          type: HTTP_AGENT
+          key: trassir.objects
+          delay: 2h
+          history: 7d
+          value_type: TEXT
+          description: 'Получение списка всех объектов сервера TRASSIR'
+          preprocessing:
+            - type: CHECK_NOT_SUPPORTED
+              parameters:
+                - '-1'
+              error_handler: CUSTOM_VALUE
+              error_handler_params: '[]'
+          timeout: 10s
+          url: '{$TRASSIR.URL}/objects/'
+          posts: 'username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
+          request_method: POST
+          tags:
+            - tag: component
+              value: trassir
       discovery_rules:
         - uuid: 123456789abc4ef092345678abcdef01
-          name: TRASSIR Channel Discovery
+          name: 'TRASSIR Channel Discovery'
           type: DEPENDENT
           key: trassir.channel.discovery
-          delay: '0'
           lifetime: 1d
-          description: Автоматическое обнаружение каналов TRASSIR
+          enabled_lifetime_type: DISABLE_NEVER
+          description: 'Автоматическое обнаружение каналов TRASSIR'
           item_prototypes:
             - uuid: 99887766554443229100ffeeddccbbaa
               name: 'Channel [{#CHANNEL.NAME}]: Signal status'
@@ -97,21 +115,21 @@ zabbix_export:
               delay: 2m
               history: 7d
               description: 'Статус сигнала канала: 1 - Signal, 0 - No Signal'
-              timeout: 10s
-              url: '{$TRASSIR.URL}/objects/{#CHANNEL.GUID}?username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
-              verify_host: 'NO'
-              verify_peer: 'NO'
               valuemap:
-                name: Signal status
+                name: 'Signal status'
               preprocessing:
                 - type: JSONPATH
                   parameters:
-                    - $.state_vector[0]
+                    - '$.state_vector[0]'
                   error_handler: CUSTOM_VALUE
-                  error_handler_params: No Signal
+                  error_handler_params: 'No Signal'
                 - type: JAVASCRIPT
                   parameters:
                     - 'return value === "Signal" ? 1 : 0;'
+              timeout: 10s
+              url: '{$TRASSIR.URL}/objects/{#CHANNEL.GUID}'
+              posts: 'username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
+              request_method: POST
               tags:
                 - tag: channel
                   value: '{#CHANNEL.NAME}'
@@ -122,13 +140,15 @@ zabbix_export:
                   expression: 'last(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}])=0'
                   name: 'Channel [{#CHANNEL.NAME}]: No signal detected'
                   priority: WARNING
-                  description: На канале {#CHANNEL.NAME} отсутствует сигнал
+                  description: 'На канале {#CHANNEL.NAME} отсутствует сигнал'
                   manual_close: 'YES'
                   tags:
                     - tag: channel
                       value: '{#CHANNEL.NAME}'
                     - tag: scope
                       value: availability
+          master_item:
+            key: trassir.objects
           lld_macro_paths:
             - lld_macro: '{#CHANNEL.GUID}'
               path: $.guid
@@ -138,23 +158,21 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$[?(@.class=="Channel")]'
-          master_item:
-            key: trassir.objects
       macros:
         - macro: '{$TRASSIR.PASSWORD}'
           value: password
-          description: Пароль пользователя TRASSIR
+          description: 'Пароль пользователя TRASSIR'
         - macro: '{$TRASSIR.URL}'
           value: 'https://192.168.1.200:8080'
           description: 'URL сервера TRASSIR (например: https://192.168.1.200:8080)'
         - macro: '{$TRASSIR.USERNAME}'
           value: Admin
-          description: Имя пользователя TRASSIR
+          description: 'Имя пользователя TRASSIR'
       valuemaps:
         - uuid: abcdef1234564890abcdef1234567890
-          name: Signal status
+          name: 'Signal status'
           mappings:
             - value: '0'
-              newvalue: No Signal
+              newvalue: 'No Signal'
             - value: '1'
               newvalue: Signal
