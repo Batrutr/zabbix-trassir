@@ -68,10 +68,10 @@ zabbix_export:
           name: 'TRASSIR: Server health'
           type: HTTP_AGENT
           key: trassir.health
+          delay: 2m
           history: 7d
           value_type: TEXT
           description: 'Состояние здоровья сервера TRASSIR'
-          timeout: 10s
           url: '{$TRASSIR.URL}/health'
           posts: 'username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
           request_method: POST
@@ -82,17 +82,10 @@ zabbix_export:
           name: 'TRASSIR: Get objects list'
           type: HTTP_AGENT
           key: trassir.objects
-          delay: 2h
+          delay: 12h
           history: 7d
           value_type: TEXT
           description: 'Получение списка всех объектов сервера TRASSIR'
-          preprocessing:
-            - type: CHECK_NOT_SUPPORTED
-              parameters:
-                - '-1'
-              error_handler: CUSTOM_VALUE
-              error_handler_params: '[]'
-          timeout: 10s
           url: '{$TRASSIR.URL}/objects/'
           posts: 'username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
           request_method: POST
@@ -112,7 +105,7 @@ zabbix_export:
               name: 'Channel [{#CHANNEL.NAME}]: Signal status'
               type: HTTP_AGENT
               key: 'trassir.channel.signal[{#CHANNEL.GUID}]'
-              delay: 2m
+              delay: 5m
               history: 7d
               description: 'Статус сигнала канала: 1 - Signal, 0 - No Signal'
               valuemap:
@@ -126,7 +119,6 @@ zabbix_export:
                 - type: JAVASCRIPT
                   parameters:
                     - 'return value === "Signal" ? 1 : 0;'
-              timeout: 10s
               url: '{$TRASSIR.URL}/objects/{#CHANNEL.GUID}'
               posts: 'username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
               request_method: POST
@@ -141,6 +133,22 @@ zabbix_export:
                   name: 'Channel [{#CHANNEL.NAME}]: No signal detected'
                   priority: WARNING
                   description: 'На канале {#CHANNEL.NAME} отсутствует сигнал'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: channel
+                      value: '{#CHANNEL.NAME}'
+                    - tag: scope
+                      value: availability
+                - uuid: 3a3b94df70804e8fb54c4c75d803a5a8
+                  expression: 'changecount(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],3600,"dec")>=3'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: |
+                    count(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],86400,,0)=0
+                    and
+                    nodata(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],300)=0
+                  name: 'Channel [{#CHANNEL.NAME}]: Signal lost 3 times in 1 hour'
+                  priority: AVERAGE
+                  description: 'На канале {#CHANNEL.NAME} пропадал сигнал 3 раза в течении часа'
                   manual_close: 'YES'
                   tags:
                     - tag: channel
