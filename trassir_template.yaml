@@ -1,5 +1,5 @@
 zabbix_export:
-  version: '7.2'
+  version: '7.4'
   template_groups:
     - uuid: 7df96b18f2304087ad29bb8bf6f8e6e9
       name: 'Templates/Video surveillance'
@@ -105,7 +105,7 @@ zabbix_export:
               name: 'Channel [{#CHANNEL.NAME}]: Signal status'
               type: HTTP_AGENT
               key: 'trassir.channel.signal[{#CHANNEL.GUID}]'
-              delay: 5m
+              delay: 2m
               history: 7d
               description: 'Статус сигнала канала: 1 - Signal, 0 - No Signal'
               valuemap:
@@ -140,15 +140,15 @@ zabbix_export:
                     - tag: scope
                       value: availability
                 - uuid: 3a3b94df70804e8fb54c4c75d803a5a8
-                  expression: 'changecount(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],3600,"dec")>=3'
+                  expression: 'changecount(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],1h,"dec")>=3'
                   recovery_mode: RECOVERY_EXPRESSION
                   recovery_expression: |
-                    count(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],86400,,0)=0
+                    count(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],1d,,0)=0
                     and
-                    nodata(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],300)=0
+                    nodata(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],1h)=0
                   name: 'Channel [{#CHANNEL.NAME}]: Signal lost 3 times in 1 hour'
                   priority: AVERAGE
-                  description: 'На канале {#CHANNEL.NAME} пропадал сигнал 3 раза в течении часа'
+                  description: 'На канале {#CHANNEL.NAME} пропадал сигнал 3 раза за 1 час'
                   manual_close: 'YES'
                   tags:
                     - tag: channel
@@ -166,6 +166,64 @@ zabbix_export:
             - type: JSONPATH
               parameters:
                 - '$[?(@.class=="Channel")]'
+        - uuid: ad0abd1f103940e4bf5b2718e195abc1
+          name: 'TRASSIR Server Discovery'
+          type: DEPENDENT
+          key: trassir.server.discovery
+          lifetime: 7d
+          enabled_lifetime_type: DISABLE_NEVER
+          description: 'Автоматическое обнаружение серверов TRASSIR'
+          item_prototypes:
+            - uuid: cb57cab3bf2d4140bffdf7572bd09512
+              name: 'SERVER [{#SERVER.NAME}]: Connection status'
+              type: HTTP_AGENT
+              key: 'trassir.server.connection[{#SERVER.GUID}]'
+              delay: 2m
+              history: 7d
+              value_type: UNSIGNED
+              description: 'Статус подключения к серверу: 1 - Online, 0 - Offline'
+              url: '{$TRASSIR.URL}/objects/{#SERVER.GUID}'
+              posts: 'username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}'
+              request_method: POST
+              preprocessing:
+                - type: JSONPATH
+                  parameters:
+                    - $.guid
+                  error_handler: CUSTOM_VALUE
+                  error_handler_params: '0'
+                - type: JAVASCRIPT
+                  parameters:
+                    - 'return value === "{#SERVER.GUID}" ? 1 : 0;'
+              tags:
+                - tag: component
+                  value: connection
+                - tag: server
+                  value: '{#SERVER.NAME}'
+              trigger_prototypes:
+                - uuid: 1cb3780b8c824779b4d496ebd8a5da97
+                  expression: 'min(/TRASSIR Server/trassir.server.connection[{#SERVER.GUID}],5m)=0'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: 'min(/TRASSIR Server/trassir.server.connection[{#SERVER.GUID}],3m)=1'
+                  name: 'SERVER [{#SERVER.NAME}]: Connection lost'
+                  priority: HIGH
+                  description: 'Потеряно подключение к серверу {#SERVER.NAME}'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: server
+                      value: '{#SERVER.NAME}'
+                    - tag: scope
+                      value: availability
+          master_item:
+            key: trassir.objects
+          lld_macro_paths:
+            - lld_macro: '{#SERVER.GUID}'
+              path: $.guid
+            - lld_macro: '{#SERVER.NAME}'
+              path: $.name
+          preprocessing:
+            - type: JSONPATH
+              parameters:
+                - '$[?(@.class=="Server")]'
       macros:
         - macro: '{$TRASSIR.PASSWORD}'
           value: password
