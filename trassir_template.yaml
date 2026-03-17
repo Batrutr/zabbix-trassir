@@ -12,7 +12,7 @@ zabbix_export:
         - name: 'Templates/Video surveillance'
       items:
         - uuid: 11223344556647889900aabbccddeeff
-          name: 'TRASSIR: Channels online'
+          name: 'TRASSIR: Каналов онлайн'
           type: DEPENDENT
           key: trassir.channels.online
           history: 7d
@@ -27,7 +27,7 @@ zabbix_export:
             - tag: component
               value: channels
         - uuid: ffeeddccbbaa40998877665544332211
-          name: 'TRASSIR: Channels total'
+          name: 'TRASSIR: Каналов всего'
           type: DEPENDENT
           key: trassir.channels.total
           history: 7d
@@ -42,7 +42,7 @@ zabbix_export:
             - tag: component
               value: channels
         - uuid: a16371ccf4a741ccb79e556ea58ba62b
-          name: 'TRASSIR: CPU load'
+          name: 'TRASSIR: Загрузка CPU'
           type: DEPENDENT
           key: trassir.cpu.load
           history: 7d
@@ -61,11 +61,17 @@ zabbix_export:
           triggers:
             - uuid: 9f845ea9dd044b5da704e0b4b8ee7204
               expression: 'avg(/TRASSIR Server/trassir.cpu.load,30m)>=90'
-              name: 'TRASSIR: Critical CPU load (>90% for 30m)'
+              name: 'TRASSIR: Критическая загрузка CPU (>90% за 30м)'
               priority: HIGH
-              description: 'Критическая загрузка CPU на сервере TRASSIR'
+              description: 'Критическая загрузка CPU на регистраторе TRASSIR'
+              manual_close: 'YES'
+              tags:
+                - tag: scope
+                  value: performance
+                - tag: server
+                  value: '{HOST.HOST}'
         - uuid: a1b2c3d4e5f64718a9384756abcdef01
-          name: 'TRASSIR: Server health'
+          name: 'TRASSIR: Состояние сервера'
           type: HTTP_AGENT
           key: trassir.health
           delay: 2m
@@ -78,8 +84,22 @@ zabbix_export:
           tags:
             - tag: component
               value: health
+          triggers:
+            - uuid: e6785ce7b62341cbac569aa028c2926e
+              expression: 'nodata(/TRASSIR Server/trassir.health,121)=1'
+              name: 'TRASSIR: Нет данных от регистратора (>2м)'
+              priority: HIGH
+              description: 'Нет данных с регистратора'
+              manual_close: 'YES'
+              tags:
+                - tag: event
+                  value: no_data
+                - tag: scope
+                  value: performance
+                - tag: server
+                  value: '{HOST.HOST}'
         - uuid: f1e2d3c4b5a647868532d1fedcba0987
-          name: 'TRASSIR: Get objects list'
+          name: 'TRASSIR: Список объектов'
           type: HTTP_AGENT
           key: trassir.objects
           delay: 12h
@@ -102,7 +122,7 @@ zabbix_export:
           description: 'Автоматическое обнаружение каналов TRASSIR'
           item_prototypes:
             - uuid: 99887766554443229100ffeeddccbbaa
-              name: 'Channel [{#CHANNEL.NAME}]: Signal status'
+              name: 'TRASSIR: Канал [{#CHANNEL.NAME}]: Сигнал'
               type: HTTP_AGENT
               key: 'trassir.channel.signal[{#CHANNEL.GUID}]'
               delay: 2m
@@ -130,7 +150,7 @@ zabbix_export:
               trigger_prototypes:
                 - uuid: fedcba9876544210bedcba9876543210
                   expression: 'last(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}])=0'
-                  name: 'Channel [{#CHANNEL.NAME}]: No signal detected'
+                  name: 'TRASSIR: Канал [{#CHANNEL.NAME}]: Нет сигнала'
                   priority: WARNING
                   description: 'На канале {#CHANNEL.NAME} отсутствует сигнал'
                   manual_close: 'YES'
@@ -139,6 +159,8 @@ zabbix_export:
                       value: '{#CHANNEL.NAME}'
                     - tag: event
                       value: no_signal
+                    - tag: parent_guid
+                      value: '{#CHANNEL.PARENT}'
                     - tag: scope
                       value: availability
                 - uuid: 3a3b94df70804e8fb54c4c75d803a5a8
@@ -148,15 +170,33 @@ zabbix_export:
                     count(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],1d,,0)=0
                     and
                     nodata(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],1h)=0
-                  name: 'Channel [{#CHANNEL.NAME}]: Signal lost 3 times in 1 hour'
+                  name: 'TRASSIR: Канал [{#CHANNEL.NAME}]: Потеря сигнала ≥3 раз за 1ч'
                   priority: AVERAGE
-                  description: 'На канале {#CHANNEL.NAME} пропадал сигнал 3 раза за 1 час'
+                  description: 'Обрывы на канале {#CHANNEL.NAME} (3-8 раз за час). Автоматическое закрытие проблемы произойдёт после суток работы без обрывов.'
                   manual_close: 'YES'
                   tags:
                     - tag: channel
                       value: '{#CHANNEL.NAME}'
                     - tag: event
                       value: signal_lost_3x
+                    - tag: scope
+                      value: availability
+                - uuid: 6dbb08d0b73348ad890fac09f3b5a9a1
+                  expression: 'changecount(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],1h,"dec")>=8'
+                  recovery_mode: RECOVERY_EXPRESSION
+                  recovery_expression: |
+                    count(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],1d,,0)=0
+                    and
+                    nodata(/TRASSIR Server/trassir.channel.signal[{#CHANNEL.GUID}],1h)=0
+                  name: 'TRASSIR: Канал [{#CHANNEL.NAME}]: Потеря сигнала ≥8 раз за 1ч'
+                  priority: HIGH
+                  description: 'Обрывы на канале {#CHANNEL.NAME} (8+ раз за час). Автоматическое закрытие проблемы произойдёт после суток работы без обрывов.'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: channel
+                      value: '{#CHANNEL.NAME}'
+                    - tag: event
+                      value: signal_lost_8x
                     - tag: scope
                       value: availability
           master_item:
@@ -166,19 +206,37 @@ zabbix_export:
               path: $.guid
             - lld_macro: '{#CHANNEL.NAME}'
               path: $.name
+            - lld_macro: '{#CHANNEL.PARENT}'
+              path: $.parent_trimmed
           preprocessing:
             - type: JSONPATH
               parameters:
                 - '$[?(@.class=="Channel")]'
+            - type: JAVASCRIPT
+              parameters:
+                - |
+                  var data = JSON.parse(value);
+                  data = data.map(function(item) {
+                      if (item.parent) {
+                          item.parent_trimmed = item.parent.slice(0, -1);
+                      }
+                      return item;
+                  });
+                  return JSON.stringify(data);
         - uuid: ad0abd1f103940e4bf5b2718e195abc1
           name: 'TRASSIR Server Discovery'
           type: DEPENDENT
           key: trassir.server.discovery
+          filter:
+            conditions:
+              - macro: '{#SERVER.NAME}'
+                value: '{HOST.HOST}'
+                operator: NOT_MATCHES_REGEX
           enabled_lifetime_type: DISABLE_NEVER
           description: 'Автоматическое обнаружение серверов TRASSIR'
           item_prototypes:
             - uuid: cb57cab3bf2d4140bffdf7572bd09512
-              name: 'SERVER [{#SERVER.NAME}]: Connection status'
+              name: 'TRASSIR: Сервер [{#SERVER.NAME}]: Подключение'
               type: HTTP_AGENT
               key: 'trassir.server.connection[{#SERVER.GUID}]'
               delay: 2m
@@ -204,19 +262,37 @@ zabbix_export:
                 - tag: server
                   value: '{#SERVER.NAME}'
               trigger_prototypes:
-                - uuid: 1cb3780b8c824779b4d496ebd8a5da97
-                  expression: 'last(/TRASSIR Server/trassir.server.connection[{#SERVER.GUID}])=0'
-                  recovery_mode: RECOVERY_EXPRESSION
-                  recovery_expression: 'min(/TRASSIR Server/trassir.server.connection[{#SERVER.GUID}],3m)=1'
-                  name: 'SERVER [{#SERVER.NAME}]: Connection lost'
-                  priority: HIGH
-                  description: 'Потеряно подключение к серверу {#SERVER.NAME}'
+                - uuid: 7a73961b571c43749ad1e1fbe3ac692e
+                  expression: 'count(/TRASSIR Server/trassir.server.connection[{#SERVER.GUID}],1d,,0)>0'
+                  name: 'TRASSIR: Регистратор [{#SERVER.NAME}]: Нестабильная связь (24ч)'
+                  priority: AVERAGE
+                  description: 'Подключение к регистратору терялось за последние сутки {#SERVER.NAME}'
                   manual_close: 'YES'
+                  dependencies:
+                    - name: 'TRASSIR: Регистратор [{#SERVER.NAME}]: Нет связи'
+                      expression: 'last(/TRASSIR Server/trassir.server.connection[{#SERVER.GUID}])=0'
                   tags:
+                    - tag: event
+                      value: no_connect_1d
                     - tag: scope
                       value: availability
                     - tag: server
                       value: '{#SERVER.NAME}'
+                - uuid: 1cb3780b8c824779b4d496ebd8a5da97
+                  expression: 'last(/TRASSIR Server/trassir.server.connection[{#SERVER.GUID}])=0'
+                  name: 'TRASSIR: Регистратор [{#SERVER.NAME}]: Нет связи'
+                  priority: HIGH
+                  description: 'Потеряно подключение к регистратору {#SERVER.NAME}'
+                  manual_close: 'YES'
+                  tags:
+                    - tag: event
+                      value: no_connect
+                    - tag: scope
+                      value: availability
+                    - tag: server
+                      value: '{#SERVER.NAME}'
+                    - tag: server_guid
+                      value: '{#SERVER.GUID}'
           master_item:
             key: trassir.objects
           lld_macro_paths:
