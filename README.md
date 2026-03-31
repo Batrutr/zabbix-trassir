@@ -1,125 +1,100 @@
 # TRASSIR Server Monitoring Template для Zabbix
 
-Шаблон для мониторинга состояния серверов видеонаблюдения TRASSIR через SDK API.
+Шаблон Zabbix 7.4 для мониторинга серверов и каналов TRASSIR через SDK API.
 
-## Описание
+## Что мониторит шаблон
 
-Данный шаблон позволяет мониторить состояние сервера TRASSIR и его видеоканалов через HTTP API. Шаблон автоматически обнаруживает все видеоканалы на сервере и создает элементы данных для каждого канала.
+### Базовые элементы данных
 
-## Возможности
+- `trassir.health` (HTTP Agent, 2m) - состояние сервера TRASSIR
+- `trassir.objects` (HTTP Agent, 12h) - список объектов TRASSIR
+- `trassir.channels.online` (Dependent) - количество каналов онлайн
+- `trassir.channels.total` (Dependent) - общее количество каналов
+- `trassir.cpu.load` (Dependent, float, %) - загрузка CPU
 
-### Общий мониторинг сервера
-- **Health check** - состояние здоровья сервера TRASSIR
-- **Список объектов** - получение списка всех объектов сервера
-- **Количество каналов онлайн** - мониторинг количества активных каналов
-- **Общее количество каналов** - общее количество каналов на сервере
+### LLD: каналы
 
-### Автоматическое обнаружение каналов (LLD)
-Шаблон автоматически обнаруживает все видеоканалы на сервере TRASSIR и для каждого канала создает следующие элементы данных:
+Правило `trassir.channel.discovery` обнаруживает объекты класса `Channel` и создает:
 
-#### Мониторинг состояния каналов
-- **Signal Status** - наличие видеосигнала (Signal/No Signal)
-- **Motion Detection** - обнаружение движения (Motion/No Motion)
-- **Recording Status** - статус записи (Recording/Not Recording)
+- `trassir.channel.signal[{#CHANNEL.GUID}]` (HTTP Agent, 2m)
 
-### Триггеры
-- **No signal detected** - срабатывает при отсутствии сигнала на канале (приоритет: WARNING)
+Преобразование значения сигнала:
+
+- `Signal` -> `1`
+- любое другое/ошибка -> `0`
+
+### LLD: удаленные серверы
+
+Правило `trassir.server.discovery` обнаруживает объекты класса `Server` и создает:
+
+- `trassir.server.connection[{#SERVER.GUID}]` (HTTP Agent, 2m)
+
+Текущий хост (по `{HOST.HOST}`) исключается фильтром из обнаружения.
+
+## Триггеры
+
+### На уровне сервера
+
+- `TRASSIR: Нет данных от регистратора (>2м)` - нет значений `trassir.health` более 121 секунды (HIGH)
+- `TRASSIR: Критическая загрузка CPU (>90% за 30м)` - `avg(trassir.cpu.load,30m) >= 90` (HIGH)
+
+### На уровне канала
+
+- `TRASSIR: Канал [{#CHANNEL.NAME}]: Нет сигнала` - последнее значение сигнала равно `0` (WARNING)
+- `TRASSIR: Канал [{#CHANNEL.NAME}]: Потеря сигнала ≥3 раз за 1ч` - `changecount(...,"dec") >= 3` (AVERAGE)
+- `TRASSIR: Канал [{#CHANNEL.NAME}]: Потеря сигнала ≥8 раз за 1ч` - `changecount(...,"dec") >= 8` (HIGH)
+
+Для триггеров потери сигнала используется recovery expression: проблема закрывается после 24 часов без обрывов и при наличии данных за последний час.
+
+### На уровне удаленных серверов
+
+- `TRASSIR: Регистратор [{#SERVER.NAME}]: Нет связи` - последнее значение подключения равно `0` (HIGH)
+- `TRASSIR: Регистратор [{#SERVER.NAME}]: Нестабильная связь (24ч)` - были отключения за сутки (AVERAGE), зависит от триггера «Нет связи»
 
 ## Требования
 
-- Zabbix Server версии 6.0 или выше
+- Zabbix 7.4+
 - TRASSIR Server с включенным SDK API
-- Сетевой доступ от Zabbix Server к TRASSIR Server
+- Сетевой доступ от Zabbix Server/Proxy к TRASSIR
 
 ## Установка
 
 ### 1. Импорт шаблона
 
-1. Войдите в веб-интерфейс Zabbix
-2. Перейдите в **Configuration** → **Templates**
-3. Нажмите **Import**
-4. Выберите файл `trassir_template.xml`
-5. Нажмите **Import**
+1. Откройте Zabbix UI -> Configuration -> Templates
+2. Нажмите Import
+3. Выберите файл `trassir_template.yaml`
+4. Подтвердите импорт
 
-### 2. Создание узла сети (Host)
+### 2. Привязка к хосту
 
-1. Перейдите в **Configuration** → **Hosts**
-2. Нажмите **Create host**
-3. Укажите имя узла сети
-4. В поле **Groups** выберите или создайте группу
-5. В разделе **Templates** выберите **TRASSIR Server**
-6. Нажмите **Add**
+1. Перейдите в Configuration -> Hosts
+2. Создайте или откройте нужный хост
+3. Привяжите шаблон `TRASSIR Server`
 
 ### 3. Настройка макросов
 
-После привязки шаблона к узлу сети необходимо настроить следующие макросы:
+| Макрос | Описание | Значение по умолчанию |
+|---|---|---|
+| `{$TRASSIR.URL}` | URL TRASSIR SDK API | `https://192.168.1.200:8080` |
+| `{$TRASSIR.USERNAME}` | Имя пользователя TRASSIR | `Admin` |
+| `{$TRASSIR.PASSWORD}` | Пароль пользователя TRASSIR | `password` |
 
-| Макрос | Описание | Значение по умолчанию | Пример |
-|--------|----------|----------------------|---------|
-| `{$TRASSIR.URL}` | URL сервера TRASSIR с портом | `https://192.168.1.200:8080` | `https://trassir.example.com:8080` |
-| `{$TRASSIR.USERNAME}` | Имя пользователя TRASSIR | `Admin` | `monitoring` |
-| `{$TRASSIR.PASSWORD}` | Пароль пользователя TRASSIR | `password` | `SecurePassword123` |
+## Используемые API-запросы
 
-#### Как настроить макросы:
+Все запросы выполняются методом `POST`:
 
-1. Перейдите к созданному узлу сети
-2. Откройте вкладку **Macros**
-3. Измените значения макросов на актуальные для вашего сервера TRASSIR
-4. Нажмите **Update**
+- `{$TRASSIR.URL}/health`
+- `{$TRASSIR.URL}/objects/`
+- `{$TRASSIR.URL}/objects/{guid}`
 
-## Настройка TRASSIR Server
+Тело запроса:
 
-Для работы мониторинга необходимо включить SDK API на сервере TRASSIR:
-
-1. Откройте настройки TRASSIR Server
-2. Перейдите в раздел **Настройки** → **Общие**
-3. Включите опцию **SDK**
-4. Укажите порт для SDK API (по умолчанию 8080)
-5. Создайте или используйте существующего пользователя с правами доступа к SDK
-6. Сохраните настройки
-
-## Мониторируемые метрики
-
-### Элементы данных сервера
-
-| Ключ | Описание | Тип | Интервал обновления |
-|------|----------|------|---------------------|
-| `trassir.objects` | Список всех объектов сервера | HTTP Agent | 1 минута |
-| `trassir.health` | Состояние здоровья сервера | HTTP Agent | 30 секунд |
-| `trassir.channels.online` | Количество каналов онлайн | Dependent | - |
-| `trassir.channels.total` | Общее количество каналов | Dependent | - |
-
-### Элементы данных канала (прототипы)
-
-| Ключ | Описание | Тип | Интервал обновления |
-|------|----------|------|---------------------|
-| `trassir.channel.state[{#CHANNEL.GUID}]` | Полное состояние канала | HTTP Agent | 30 секунд |
-| `trassir.channel.signal[{#CHANNEL.GUID}]` | Статус сигнала (1 - Signal, 0 - No Signal) | Dependent | - |
-| `trassir.channel.motion[{#CHANNEL.GUID}]` | Обнаружение движения (1 - Motion, 0 - No Motion) | Dependent | - |
-| `trassir.channel.recording[{#CHANNEL.GUID}]` | Статус записи (1 - Recording, 0 - Not Recording) | Dependent | - |
-
-## Теги
-
-Шаблон использует следующие теги для категоризации элементов данных:
-
-- `component:trassir` - общие элементы TRASSIR
-- `component:health` - элементы здоровья сервера
-- `component:channels` - элементы каналов
-- `component:signal` - элементы сигнала
-- `component:motion` - элементы движения
-- `component:recording` - элементы записи
-- `channel:{#CHANNEL.NAME}` - привязка к конкретному каналу
-- `scope:availability` - элементы доступности
-
-## API Reference
-
-Шаблон использует следующие эндпоинты TRASSIR SDK API:
-
-- `GET /objects/` - получение списка всех объектов
-- `GET /health` - проверка состояния здоровья сервера
-- `GET /objects/{guid}` - получение информации о конкретном объекте (канале)
-
-Формат запросов:
+```text
+username={$TRASSIR.USERNAME}&password={$TRASSIR.PASSWORD}
 ```
-https://{server}:{port}/{endpoint}?username={user}&password={pass}
-```
+
+## Карты значений
+
+- `Signal status`: `0 -> No Signal`, `1 -> Signal`
+- `Connection status`: `0 -> Offline`, `1 -> Online`
